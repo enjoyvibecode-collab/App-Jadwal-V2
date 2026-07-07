@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DayOfWeek, TimeConfig, Teacher, Classroom, Workload, TimetableResult, DEFAULT_OFFICIAL_SCHEDULE } from './types';
+import { DayOfWeek, TimeConfig, Teacher, Classroom, Workload, TimetableResult, DEFAULT_OFFICIAL_SCHEDULE, ScheduleRow } from './types';
 import TimeSettings from './components/TimeSettings';
 import TeacherDirectory from './components/TeacherDirectory';
 import ClassroomDirectory from './components/ClassroomDirectory';
@@ -245,27 +245,110 @@ export default function App() {
     showToast('Seluruh data berhasil di-reset.', 'info');
   };
 
-  // Export JSON file
+  // Export Excel file (.xlsx) with all master configuration tables
   const handleExportData = () => {
-    const exportObj = {
-      version: '1.0',
-      timeConfig,
-      teachers,
-      classrooms,
-      workloads
-    };
-    
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `SmartTimetable_Backup_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast('Backup data berhasil diekspor!');
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // 1. Sheet "Daftar Guru"
+      const guruData = teachers.map(t => ({
+        'ID Guru': t.id,
+        'Nama Guru': t.name,
+        'NIP': t.nip || '-',
+        'Kode Inisial': t.code,
+        'Maksimal JP Per Hari': t.maxJpPerDay
+      }));
+      const wsGuru = XLSX.utils.json_to_sheet(guruData);
+      XLSX.utils.book_append_sheet(wb, wsGuru, 'Daftar Guru');
+
+      // 2. Sheet "Daftar Kelas"
+      const kelasData = classrooms.map(c => ({
+        'ID Kelas': c.id,
+        'Nama Kelas': c.name
+      }));
+      const wsKelas = XLSX.utils.json_to_sheet(kelasData);
+      XLSX.utils.book_append_sheet(wb, wsKelas, 'Daftar Kelas');
+
+      // 3. Sheet "Beban Mengajar"
+      const teacherMapId = new Map(teachers.map(t => [t.id, t.name]));
+      const classroomMapId = new Map(classrooms.map(c => [c.id, c.name]));
+      const bebanData = workloads.map(w => ({
+        'ID Kontrak': w.id,
+        'Nama Guru': teacherMapId.get(w.teacherId) || w.teacherId,
+        'Mata Pelajaran': w.subject,
+        'Nama Kelas': classroomMapId.get(w.classroomId) || w.classroomId,
+        'Mingguan JP': w.weeklyJp
+      }));
+      const wsBeban = XLSX.utils.json_to_sheet(bebanData);
+      XLSX.utils.book_append_sheet(wb, wsBeban, 'Beban Mengajar');
+
+      // 4. Sheet "Konfigurasi Umum"
+      const configUmum = [
+        { 'Parameter': 'Hari Aktif (Koma Separator)', 'Nilai': timeConfig.days.join(',') },
+        { 'Parameter': 'Jumlah Sesi JP Per Hari', 'Nilai': String(timeConfig.periodsPerDay) },
+        { 'Parameter': 'Aturan Pemecahan JP (ideal / classic)', 'Nilai': timeConfig.splittingRule || 'ideal' }
+      ];
+      const wsConfig = XLSX.utils.json_to_sheet(configUmum);
+      XLSX.utils.book_append_sheet(wb, wsConfig, 'Konfigurasi Umum');
+
+      // 5. Sheet "Jadwal Jam Sesi"
+      const jadwalData: any[] = [];
+      const activeSchedules = timeConfig.customSchedules || DEFAULT_OFFICIAL_SCHEDULE;
+      Object.entries(activeSchedules).forEach(([day, rows]) => {
+        if (!timeConfig.days.includes(day as DayOfWeek)) return;
+        (rows as ScheduleRow[]).forEach(r => {
+          jadwalData.push({
+            'Hari': day,
+            'Tipe Sesi': r.isSpecial ? 'Khusus (Istirahat/Upacara)' : 'Pelajaran (KBM)',
+            'Jam Ke (Bila Pelajaran)': r.periodIndex !== undefined ? r.periodIndex + 1 : '',
+            'Label Sesi JP': r.jpLabel || '',
+            'Durasi Waktu (e.g. 07.30 - 08.10)': r.time || '',
+            'Keterangan / Nama Kegiatan': r.label || ''
+          });
+        });
+      });
+      const wsJadwal = XLSX.utils.json_to_sheet(jadwalData);
+      XLSX.utils.book_append_sheet(wb, wsJadwal, 'Jadwal Jam Sesi');
+
+      // 6. Sheet "Slot Waktu Terkunci"
+      const lockData = timeConfig.lockedSlots.map(s => ({
+        'Hari': s.day,
+        'Jam Ke (1-indexed)': s.period + 1,
+        'Alasan Penguncian': s.reason,
+        'Berlaku Khusus Kelas (Pisahkan koma, Kosongkan jika semua)': s.targetClassroomIds && s.targetClassroomIds.length > 0
+          ? s.targetClassroomIds.map(id => classroomMapId.get(id) || id).join(',')
+          : ''
+      }));
+      const wsLocks = XLSX.utils.json_to_sheet(lockData);
+      XLSX.utils.book_append_sheet(wb, wsLocks, 'Slot Waktu Terkunci');
+
+      // Generate binary and trigger download
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+      const s2ab = (s: string) => {
+        const buf = new ArrayBuffer(s.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+        return buf;
+      };
+
+      const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", url);
+      downloadAnchor.setAttribute("download", `BackupData_JadwalSmart_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+
+      showToast('Data master berhasil diekspor ke Excel (.xlsx)!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(`Gagal mengekspor data: ${(err as Error).message}`, 'error');
+    }
   };
 
-  // Import JSON or Excel file
+  // Import Excel (.xlsx / .xls) file
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -279,189 +362,357 @@ export default function App() {
           const binaryStr = event.target?.result;
           const workbook = XLSX.read(binaryStr, { type: 'binary' });
           
-          // Let's find "distribusi mengajar" sheet or "distribusi" or similar, or default to the first sheet
-          let targetSheetName = workbook.SheetNames.find(name => 
-            name.toLowerCase().includes('distribusi') || 
-            name.toLowerCase().includes('mengajar') || 
-            name.toLowerCase().includes('workload') ||
-            name.toLowerCase().includes('beban')
-          );
-          
-          if (!targetSheetName) {
-            targetSheetName = workbook.SheetNames[0];
-          }
+          // Let's identify if this is a Multi-Sheet Backup exported from our app
+          const hasDaftarGuru = workbook.SheetNames.includes('Daftar Guru');
+          const hasDaftarKelas = workbook.SheetNames.includes('Daftar Kelas');
+          const hasBebanMengajar = workbook.SheetNames.includes('Beban Mengajar');
 
-          const worksheet = workbook.Sheets[targetSheetName];
-          if (!worksheet) {
-            showToast('Lembar kerja (Sheet) tidak ditemukan di file Excel.', 'error');
-            return;
-          }
+          if (hasDaftarGuru && hasDaftarKelas && hasBebanMengajar) {
+            // --- PARSE APP BACKUP EXCEL ---
+            // 1. Teachers
+            const wsGuru = workbook.Sheets['Daftar Guru'];
+            const teachersRaw = XLSX.utils.sheet_to_json<any>(wsGuru);
+            const importedTeachers: Teacher[] = teachersRaw.map((row: any) => ({
+              id: String(row['ID Guru'] || row['ID'] || `t_${String(row['Nama Guru']).toLowerCase().replace(/[^a-z0-9]/g, '_')}`).trim(),
+              name: String(row['Nama Guru'] || '').trim(),
+              nip: String(row['NIP'] || '-').trim(),
+              code: String(row['Kode Inisial'] || row['Kode'] || '').trim().toUpperCase(),
+              maxJpPerDay: typeof row['Maksimal JP Per Hari'] === 'number' ? row['Maksimal JP Per Hari'] : 10
+            })).filter(t => t.name);
 
-          // Parse worksheet to raw array of arrays
-          const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
-          if (rawRows.length === 0) {
-            showToast('File Excel kosong atau tidak terbaca.', 'error');
-            return;
-          }
+            // 2. Classrooms
+            const wsKelas = workbook.Sheets['Daftar Kelas'];
+            const kelasRaw = XLSX.utils.sheet_to_json<any>(wsKelas);
+            const importedClassrooms: Classroom[] = kelasRaw.map((row: any) => ({
+              id: String(row['ID Kelas'] || row['ID'] || `c_${String(row['Nama Kelas']).toLowerCase().replace(/[^a-z0-9]/g, '_')}`).trim(),
+              name: String(row['Nama Kelas'] || '').trim()
+            })).filter(c => c.name);
 
-          // Find header row or guess columns
-          let headerIdx = -1;
-          let teacherColIdx = -1;
-          let codeColIdx = -1;
-          let subjectColIdx = -1;
-          let classroomColIdx = -1;
-          let jpColIdx = -1;
+            const teacherByNameMap = new Map(importedTeachers.map(t => [t.name.toLowerCase().trim(), t]));
+            const classroomByNameMap = new Map(importedClassrooms.map(c => [c.name.toLowerCase().trim(), c]));
+            const teacherByIdMap = new Map(importedTeachers.map(t => [t.id, t]));
+            const classroomByIdMap = new Map(importedClassrooms.map(c => [c.id, c]));
 
-          // Let's search the first 15 rows to find the headers
-          for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
-            const row = rawRows[r];
-            if (!row || !Array.isArray(row)) continue;
+            // 3. Workloads
+            const wsBeban = workbook.Sheets['Beban Mengajar'];
+            const bebanRaw = XLSX.utils.sheet_to_json<any>(wsBeban);
+            const importedWorkloads: Workload[] = [];
+            let workloadIdCounter = 1;
+
+            bebanRaw.forEach((row: any) => {
+              const id = row['ID Kontrak'] || row['ID'] || `w_imported_${workloadIdCounter++}`;
+              const gName = String(row['Nama Guru'] || '').trim();
+              const subject = String(row['Mata Pelajaran'] || '').trim();
+              const cName = String(row['Nama Kelas'] || '').trim();
+              const jp = typeof row['Mingguan JP'] === 'number' ? row['Mingguan JP'] : 4;
+
+              if (!gName || !subject || !cName) return;
+
+              // Resolve teacher
+              let teacher = teacherByNameMap.get(gName.toLowerCase()) || teacherByIdMap.get(gName);
+              if (!teacher) {
+                const newId = 't_' + gName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                teacher = { id: newId, name: gName, nip: '-', code: gName.substring(0,3).toUpperCase(), maxJpPerDay: 10 };
+                importedTeachers.push(teacher);
+                teacherByNameMap.set(gName.toLowerCase(), teacher);
+                teacherByIdMap.set(newId, teacher);
+              }
+
+              // Resolve classroom
+              let classroom = classroomByNameMap.get(cName.toLowerCase()) || classroomByIdMap.get(cName);
+              if (!classroom) {
+                const newId = 'c_' + cName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                classroom = { id: newId, name: cName };
+                importedClassrooms.push(classroom);
+                classroomByNameMap.set(cName.toLowerCase(), classroom);
+                classroomByIdMap.set(newId, classroom);
+              }
+
+              importedWorkloads.push({
+                id: String(id),
+                teacherId: teacher.id,
+                classroomId: classroom.id,
+                subject,
+                weeklyJp: jp
+              });
+            });
+
+            // 4. Parse TimeConfig Days & Rule
+            let importedTimeConfig: TimeConfig = {
+              days: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
+              periodsPerDay: 10,
+              lockedSlots: [],
+              splittingRule: 'ideal'
+            };
+
+            const wsConfig = workbook.Sheets['Konfigurasi Umum'];
+            if (wsConfig) {
+              const configRaw = XLSX.utils.sheet_to_json<any>(wsConfig);
+              configRaw.forEach((row: any) => {
+                const param = String(row['Parameter'] || '').trim().toLowerCase();
+                const val = String(row['Nilai'] || '').trim();
+                if (param.includes('hari aktif') && val) {
+                  importedTimeConfig.days = val.split(',').map(s => s.trim() as DayOfWeek);
+                } else if (param.includes('sesi jp per hari') && val) {
+                  const parsed = parseInt(val, 10);
+                  if (!isNaN(parsed)) importedTimeConfig.periodsPerDay = parsed;
+                } else if (param.includes('pemecahan jp') && val) {
+                  importedTimeConfig.splittingRule = val as 'ideal' | 'classic';
+                }
+              });
+            }
+
+            // 5. Parse Custom Schedules
+            const wsJadwal = workbook.Sheets['Jadwal Jam Sesi'];
+            if (wsJadwal) {
+              const jadwalRaw = XLSX.utils.sheet_to_json<any>(wsJadwal);
+              const schedulesByDay: Record<string, ScheduleRow[]> = {};
+              importedTimeConfig.days.forEach(day => {
+                schedulesByDay[day] = [];
+              });
+
+              jadwalRaw.forEach((row: any) => {
+                const day = String(row['Hari'] || '').trim() as DayOfWeek;
+                const tipeSesi = String(row['Tipe Sesi'] || '').toLowerCase();
+                const isSpecial = tipeSesi.includes('khusus') || tipeSesi.includes('istirahat') || tipeSesi.includes('upacara');
+                const periodIdxRaw = row['Jam Ke (Bila Pelajaran)'];
+                const periodIndex = periodIdxRaw !== undefined && periodIdxRaw !== '' ? parseInt(String(periodIdxRaw), 10) - 1 : undefined;
+                const jpLabel = String(row['Label Sesi JP'] || '').trim();
+                const timeStr = String(row['Durasi Waktu (e.g. 07.30 - 08.10)'] || '').trim();
+                const label = String(row['Keterangan / Nama Kegiatan'] || '').trim();
+
+                if (day && importedTimeConfig.days.includes(day)) {
+                  if (!schedulesByDay[day]) schedulesByDay[day] = [];
+                  schedulesByDay[day].push({
+                    isSpecial,
+                    label,
+                    periodIndex: isSpecial ? undefined : (periodIndex !== undefined ? periodIndex : schedulesByDay[day].filter(r => !r.isSpecial).length),
+                    jpLabel: isSpecial ? undefined : jpLabel,
+                    time: timeStr
+                  });
+                }
+              });
+
+              // Ensure correct sorting per day based on periodIndex or order
+              Object.keys(schedulesByDay).forEach(day => {
+                schedulesByDay[day].sort((a,b) => {
+                  if (a.periodIndex !== undefined && b.periodIndex !== undefined) {
+                    return a.periodIndex - b.periodIndex;
+                  }
+                  return 0; // maintain raw order
+                });
+              });
+
+              importedTimeConfig.customSchedules = schedulesByDay as Record<DayOfWeek, ScheduleRow[]>;
+            }
+
+            // 6. Parse Locked Slots
+            const wsLocks = workbook.Sheets['Slot Waktu Terkunci'];
+            if (wsLocks) {
+              const locksRaw = XLSX.utils.sheet_to_json<any>(wsLocks);
+              importedTimeConfig.lockedSlots = locksRaw.map((row: any) => {
+                const day = String(row['Hari'] || '').trim() as DayOfWeek;
+                const periodRaw = row['Jam Ke (1-indexed)'];
+                const period = periodRaw !== undefined ? parseInt(String(periodRaw), 10) - 1 : 0;
+                const reason = String(row['Alasan Penguncian'] || '').trim();
+                const targetRaw = String(row['Berlaku Khusus Kelas (Pisahkan koma, Kosongkan jika semua)'] || '').trim();
+
+                let targetClassroomIds: string[] | undefined = undefined;
+                if (targetRaw) {
+                  targetClassroomIds = targetRaw.split(',').map(name => {
+                    const cleanName = name.trim();
+                    const matchedClass = classroomByNameMap.get(cleanName.toLowerCase()) || classroomByIdMap.get(cleanName);
+                    return matchedClass ? matchedClass.id : cleanName;
+                  });
+                }
+
+                return {
+                  day,
+                  period,
+                  reason,
+                  targetClassroomIds
+                };
+              }).filter((s: any) => s.day && !isNaN(s.period));
+            }
+
+            // Save to state and storage
+            localStorage.setItem('school_time_config', JSON.stringify(importedTimeConfig));
+            localStorage.setItem('school_teachers', JSON.stringify(importedTeachers));
+            localStorage.setItem('school_classrooms', JSON.stringify(importedClassrooms));
+            localStorage.setItem('school_workloads', JSON.stringify(importedWorkloads));
+            localStorage.removeItem('school_timetable_result');
+
+            setTimeConfig(importedTimeConfig);
+            setTeachers(importedTeachers);
+            setClassrooms(importedClassrooms);
+            setWorkloads(importedWorkloads);
+            setTimetableResult(null);
+
+            showToast(`Excel Backup berhasil dimuat! Terdaftar ${importedTeachers.length} Guru, ${importedClassrooms.length} Kelas, dan ${importedWorkloads.length} Beban Mengajar.`, 'success');
+
+          } else {
+            // --- FALLBACK TO SIMPLE RAW WORKLOAD DISTRIBUTION SHEET ---
+            let targetSheetName = workbook.SheetNames.find(name => 
+              name.toLowerCase().includes('distribusi') || 
+              name.toLowerCase().includes('mengajar') || 
+              name.toLowerCase().includes('workload') ||
+              name.toLowerCase().includes('beban')
+            );
             
-            const cols = row.map(c => String(c || '').toLowerCase().trim());
-            
-            // Check if this looks like a header row
-            const hasTeacher = cols.some(c => c.includes('guru') || c.includes('nama') || c.includes('teacher') || c.includes('pengajar'));
-            const hasSubject = cols.some(c => c.includes('pelajaran') || c.includes('mapel') || c.includes('subject') || c.includes('materi'));
-            const hasClassroom = cols.some(c => c.includes('kelas') || c.includes('rombel') || c.includes('classroom') || c.includes('class'));
-            const hasJp = cols.some(c => c.includes('jp') || c.includes('jam') || c.includes('volume') || c.includes('weekly') || c.includes('durasi'));
-
-            if (hasTeacher && (hasSubject || hasClassroom)) {
-              headerIdx = r;
-              
-              // Find specific column indices
-              teacherColIdx = cols.findIndex(c => c.includes('guru') || c.includes('nama') || c.includes('teacher') || c.includes('pengajar'));
-              codeColIdx = cols.findIndex(c => c.includes('kode') || c.includes('inisial') || c.includes('code'));
-              subjectColIdx = cols.findIndex(c => c.includes('pelajaran') || c.includes('mapel') || c.includes('subject') || c.includes('materi'));
-              classroomColIdx = cols.findIndex(c => c.includes('kelas') || c.includes('rombel') || c.includes('classroom') || c.includes('class'));
-              jpColIdx = cols.findIndex(c => c.includes('jp') || c.includes('jam') || c.includes('volume') || c.includes('weekly') || c.includes('durasi'));
-              break;
-            }
-          }
-
-          // If headers weren't found, use standard default column index positions
-          if (headerIdx === -1) {
-            headerIdx = 0; // assume no header or starts at 0
-            teacherColIdx = 0;
-            subjectColIdx = 1;
-            classroomColIdx = 2;
-            jpColIdx = 3;
-          }
-
-          // Lists to compile
-          const importedTeachers: Teacher[] = [];
-          const importedClassrooms: Classroom[] = [];
-          const importedWorkloads: Workload[] = [];
-
-          const teacherMap = new Map<string, Teacher>(); // Name -> Teacher
-          const classroomMap = new Map<string, Classroom>(); // Name -> Classroom
-
-          let workloadCounter = 1;
-
-          // Parse data rows starting after the header row
-          for (let r = headerIdx + 1; r < rawRows.length; r++) {
-            const row = rawRows[r];
-            if (!row || !Array.isArray(row) || row.length === 0) continue;
-
-            const teacherNameRaw = String(row[teacherColIdx] || '').trim();
-            const subjectNameRaw = String(row[subjectColIdx] || '').trim();
-            const classroomNameRaw = String(row[classroomColIdx] || '').trim();
-            const jpRaw = row[jpColIdx];
-
-            // If empty critical fields, skip
-            if (!teacherNameRaw || !subjectNameRaw || !classroomNameRaw || teacherNameRaw.toLowerCase() === 'null' || subjectNameRaw.toLowerCase() === 'null') {
-              continue;
+            if (!targetSheetName) {
+              targetSheetName = workbook.SheetNames[0];
             }
 
-            // Skip helper text rows
-            if (teacherNameRaw.startsWith('===') || teacherNameRaw.toLowerCase().includes('total') || teacherNameRaw.toLowerCase().includes('rekap')) {
-              continue;
+            const worksheet = workbook.Sheets[targetSheetName];
+            if (!worksheet) {
+              showToast('Lembar kerja (Sheet) tidak ditemukan di file Excel.', 'error');
+              return;
             }
 
-            // 1. Get or create Teacher
-            let teacher = teacherMap.get(teacherNameRaw.toLowerCase());
-            if (!teacher) {
-              const teacherId = 't_' + teacherNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '_');
-              let teacherCode = '';
-              if (codeColIdx !== -1 && row[codeColIdx]) {
-                teacherCode = String(row[codeColIdx]).trim().toUpperCase();
-              } else {
-                // Generate short 2-3 letter uppercase code from initials
-                const parts = teacherNameRaw.split(/\s+/).filter(Boolean);
-                if (parts.length >= 2) {
-                  teacherCode = (parts[0][0] + parts[1][0]).toUpperCase();
-                } else if (parts.length === 1) {
-                  teacherCode = parts[0].substring(0, 3).toUpperCase();
+            const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+            if (rawRows.length === 0) {
+              showToast('File Excel kosong.', 'error');
+              return;
+            }
+
+            // Find header row or guess columns
+            let headerIdx = -1;
+            let teacherColIdx = -1;
+            let codeColIdx = -1;
+            let subjectColIdx = -1;
+            let classroomColIdx = -1;
+            let jpColIdx = -1;
+
+            for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
+              const row = rawRows[r];
+              if (!row || !Array.isArray(row)) continue;
+              const cols = row.map(c => String(c || '').toLowerCase().trim());
+              const hasTeacher = cols.some(c => c.includes('guru') || c.includes('nama') || c.includes('teacher') || c.includes('pengajar'));
+              const hasSubject = cols.some(c => c.includes('pelajaran') || c.includes('mapel') || c.includes('subject') || c.includes('materi'));
+              const hasClassroom = cols.some(c => c.includes('kelas') || c.includes('rombel') || c.includes('classroom') || c.includes('class'));
+
+              if (hasTeacher && (hasSubject || hasClassroom)) {
+                headerIdx = r;
+                teacherColIdx = cols.findIndex(c => c.includes('guru') || c.includes('nama') || c.includes('teacher') || c.includes('pengajar'));
+                codeColIdx = cols.findIndex(c => c.includes('kode') || c.includes('inisial') || c.includes('code'));
+                subjectColIdx = cols.findIndex(c => c.includes('pelajaran') || c.includes('mapel') || c.includes('subject') || c.includes('materi'));
+                classroomColIdx = cols.findIndex(c => c.includes('kelas') || c.includes('rombel') || c.includes('classroom') || c.includes('class'));
+                jpColIdx = cols.findIndex(c => c.includes('jp') || c.includes('jam') || c.includes('volume') || c.includes('weekly') || c.includes('durasi'));
+                break;
+              }
+            }
+
+            if (headerIdx === -1) {
+              headerIdx = 0;
+              teacherColIdx = 0;
+              subjectColIdx = 1;
+              classroomColIdx = 2;
+              jpColIdx = 3;
+            }
+
+            const importedTeachers: Teacher[] = [];
+            const importedClassrooms: Classroom[] = [];
+            const importedWorkloads: Workload[] = [];
+            const teacherMap = new Map<string, Teacher>();
+            const classroomMap = new Map<string, Classroom>();
+            let workloadCounter = 1;
+
+            for (let r = headerIdx + 1; r < rawRows.length; r++) {
+              const row = rawRows[r];
+              if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+              const teacherNameRaw = String(row[teacherColIdx] || '').trim();
+              const subjectNameRaw = String(row[subjectColIdx] || '').trim();
+              const classroomNameRaw = String(row[classroomColIdx] || '').trim();
+              const jpRaw = row[jpColIdx];
+
+              if (!teacherNameRaw || !subjectNameRaw || !classroomNameRaw || teacherNameRaw.toLowerCase() === 'null') {
+                continue;
+              }
+
+              if (teacherNameRaw.startsWith('===') || teacherNameRaw.toLowerCase().includes('total') || teacherNameRaw.toLowerCase().includes('rekap')) {
+                continue;
+              }
+
+              let teacher = teacherMap.get(teacherNameRaw.toLowerCase());
+              if (!teacher) {
+                const teacherId = 't_' + teacherNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                let teacherCode = '';
+                if (codeColIdx !== -1 && row[codeColIdx]) {
+                  teacherCode = String(row[codeColIdx]).trim().toUpperCase();
                 } else {
-                  teacherCode = 'GUR';
+                  const parts = teacherNameRaw.split(/\s+/).filter(Boolean);
+                  if (parts.length >= 2) {
+                    teacherCode = (parts[0][0] + parts[1][0]).toUpperCase();
+                  } else if (parts.length === 1) {
+                    teacherCode = parts[0].substring(0, 3).toUpperCase();
+                  } else {
+                    teacherCode = 'GUR';
+                  }
+                }
+
+                let uniqueCode = teacherCode;
+                let suffixCounter = 1;
+                while (importedTeachers.some(t => t.code === uniqueCode)) {
+                  uniqueCode = `${teacherCode}${suffixCounter++}`;
+                }
+
+                teacher = {
+                  id: teacherId,
+                  name: teacherNameRaw,
+                  nip: '-',
+                  code: uniqueCode,
+                  maxJpPerDay: 10
+                };
+                teacherMap.set(teacherNameRaw.toLowerCase(), teacher);
+                importedTeachers.push(teacher);
+              }
+
+              let classroom = classroomMap.get(classroomNameRaw.toLowerCase());
+              if (!classroom) {
+                const classroomId = 'c_' + classroomNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                classroom = {
+                  id: classroomId,
+                  name: classroomNameRaw
+                };
+                classroomMap.set(classroomNameRaw.toLowerCase(), classroom);
+                importedClassrooms.push(classroom);
+              }
+
+              let weeklyJp = 4;
+              if (jpRaw !== undefined && jpRaw !== null && jpRaw !== '') {
+                const parsedJp = parseInt(String(jpRaw), 10);
+                if (!isNaN(parsedJp) && parsedJp > 0) {
+                  weeklyJp = parsedJp;
                 }
               }
 
-              // Ensure uniqueness of teacher code
-              let uniqueCode = teacherCode;
-              let suffixCounter = 1;
-              while (importedTeachers.some(t => t.code === uniqueCode)) {
-                uniqueCode = `${teacherCode}${suffixCounter++}`;
-              }
-
-              teacher = {
-                id: teacherId,
-                name: teacherNameRaw,
-                nip: '-',
-                code: uniqueCode,
-                maxJpPerDay: 10
-              };
-              teacherMap.set(teacherNameRaw.toLowerCase(), teacher);
-              importedTeachers.push(teacher);
+              importedWorkloads.push({
+                id: `w_imported_${workloadCounter++}`,
+                teacherId: teacher.id,
+                classroomId: classroom.id,
+                subject: subjectNameRaw,
+                weeklyJp: weeklyJp
+              });
             }
 
-            // 2. Get or create Classroom
-            let classroom = classroomMap.get(classroomNameRaw.toLowerCase());
-            if (!classroom) {
-              const classroomId = 'c_' + classroomNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '_');
-              classroom = {
-                id: classroomId,
-                name: classroomNameRaw
-              };
-              classroomMap.set(classroomNameRaw.toLowerCase(), classroom);
-              importedClassrooms.push(classroom);
+            if (importedWorkloads.length === 0) {
+              showToast('Tidak ada data mengajar yang valid yang berhasil diuraikan dari file Excel.', 'error');
+              return;
             }
 
-            // 3. Parse JP
-            let weeklyJp = 4;
-            if (jpRaw !== undefined && jpRaw !== null && jpRaw !== '') {
-              const parsedJp = parseInt(String(jpRaw), 10);
-              if (!isNaN(parsedJp) && parsedJp > 0) {
-                weeklyJp = parsedJp;
-              }
-            }
+            localStorage.setItem('school_teachers', JSON.stringify(importedTeachers));
+            localStorage.setItem('school_classrooms', JSON.stringify(importedClassrooms));
+            localStorage.setItem('school_workloads', JSON.stringify(importedWorkloads));
+            localStorage.removeItem('school_timetable_result');
 
-            // 4. Create Workload
-            importedWorkloads.push({
-              id: `w_imported_${workloadCounter++}`,
-              teacherId: teacher.id,
-              classroomId: classroom.id,
-              subject: subjectNameRaw,
-              weeklyJp: weeklyJp
-            });
+            setTeachers(importedTeachers);
+            setClassrooms(importedClassrooms);
+            setWorkloads(importedWorkloads);
+            setTimetableResult(null);
+
+            showToast(`Excel berhasil di-import! Berhasil memuat ${importedTeachers.length} Guru, ${importedClassrooms.length} Kelas, dan ${importedWorkloads.length} Alokasi Mengajar.`, 'success');
           }
-
-          if (importedWorkloads.length === 0) {
-            showToast('Tidak ada data mengajar yang valid yang berhasil diuraikan dari file Excel.', 'error');
-            return;
-          }
-
-          // Save to local storage & state
-          localStorage.setItem('school_teachers', JSON.stringify(importedTeachers));
-          localStorage.setItem('school_classrooms', JSON.stringify(importedClassrooms));
-          localStorage.setItem('school_workloads', JSON.stringify(importedWorkloads));
-          localStorage.removeItem('school_timetable_result');
-
-          setTeachers(importedTeachers);
-          setClassrooms(importedClassrooms);
-          setWorkloads(importedWorkloads);
-          setTimetableResult(null);
-
-          showToast(`Excel berhasil di-import! Berhasil memuat ${importedTeachers.length} Guru, ${importedClassrooms.length} Kelas, dan ${importedWorkloads.length} Alokasi Mengajar.`, 'success');
         } catch (err) {
           console.error(err);
           showToast(`Gagal mengurai file Excel: ${(err as Error).message}`, 'error');
@@ -469,23 +720,7 @@ export default function App() {
       };
       fileReader.readAsBinaryString(file);
     } else {
-      fileReader.onload = (event) => {
-        try {
-          const parsed = JSON.parse(event.target?.result as string);
-          if (parsed.timeConfig && parsed.teachers && parsed.classrooms && parsed.workloads) {
-            setTimeConfig(parsed.timeConfig);
-            setTeachers(parsed.teachers);
-            setClassrooms(parsed.classrooms);
-            setWorkloads(parsed.workloads);
-            showToast('Data master berhasil di-import!', 'success');
-          } else {
-            showToast('Format berkas backup JSON tidak sesuai.', 'error');
-          }
-        } catch (err) {
-          showToast('Gagal mengurai berkas JSON.', 'error');
-        }
-      };
-      fileReader.readAsText(file);
+      showToast('Harap pilih berkas Excel (.xlsx atau .xls).', 'error');
     }
     
     e.target.value = ''; // clear input
@@ -568,7 +803,7 @@ export default function App() {
 
             <button
               onClick={handleExportData}
-              title="Ekspor Backup JSON"
+              title="Ekspor Backup Excel (.xlsx)"
               className="p-2 sm:px-3.5 sm:py-2 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer flex-1 sm:flex-initial"
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -580,7 +815,7 @@ export default function App() {
               <span className="hidden sm:inline">Impor</span>
               <input 
                 type="file" 
-                accept=".json,.xlsx,.xls" 
+                accept=".xlsx,.xls" 
                 onChange={handleImportData} 
                 className="hidden" 
               />

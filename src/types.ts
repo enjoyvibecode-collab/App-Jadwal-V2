@@ -21,6 +21,7 @@ export interface TimeConfig {
   lockedSlots: LockedSlot[];
   customSchedules?: Record<string, ScheduleRow[]>;
   splittingRule?: 'ideal' | 'classic';
+  ignoreLockedSlots?: boolean;
 }
 
 export const DEFAULT_OFFICIAL_SCHEDULE: Record<string, ScheduleRow[]> = {

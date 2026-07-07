@@ -44,6 +44,7 @@ export default function SolverDashboard({
   // Solver State
   const [logs, setLogs] = useState<SolverLog[]>([]);
   const [isSolving, setIsSolving] = useState(false);
+  const [localIgnoreLockedSlots, setLocalIgnoreLockedSlots] = useState(false);
   const [solverSuccess, setSolverSuccess] = useState<boolean | null>(
     timetableResult ? true : null
   );
@@ -95,7 +96,7 @@ export default function SolverDashboard({
     setTimeout(() => {
       try {
         const { success, result } = generateTimetable(
-          timeConfig,
+          { ...timeConfig, ignoreLockedSlots: localIgnoreLockedSlots },
           teachers,
           classrooms,
           workloads,
@@ -543,23 +544,39 @@ export default function SolverDashboard({
           </p>
         </div>
 
-        <button
-          onClick={handleStartSolve}
-          disabled={isSolving || workloads.length === 0}
-          className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center gap-2 cursor-pointer self-start md:self-auto"
-        >
-          {isSolving ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Memproses Jadwal...
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4 fill-current" />
-              PROSES GENERATE JADWAL OTOMATIS
-            </>
-          )}
-        </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto shrink-0">
+          {/* Opsi Abaikan Penguncian */}
+          <label className="inline-flex items-center gap-2.5 px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100/75 border border-amber-200/70 rounded-xl transition-all cursor-pointer text-xs font-semibold text-amber-900 select-none">
+            <input
+              type="checkbox"
+              checked={localIgnoreLockedSlots}
+              onChange={(e) => setLocalIgnoreLockedSlots(e.target.checked)}
+              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300 accent-amber-600 cursor-pointer"
+            />
+            <div className="flex flex-col">
+              <span>Abaikan Penguncian Jam Khusus</span>
+              <span className="text-[10px] text-amber-700/80 font-normal">Izinkan KBM di slot Kewalikelasan/Wustho/Upacara</span>
+            </div>
+          </label>
+
+          <button
+            onClick={handleStartSolve}
+            disabled={isSolving || workloads.length === 0}
+            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center gap-2 cursor-pointer self-start sm:self-auto shrink-0"
+          >
+            {isSolving ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Memproses Jadwal...
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 fill-current" />
+                PROSES GENERATE JADWAL OTOMATIS
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Stats and Real-time Console Logging */}
@@ -946,17 +963,6 @@ export default function SolverDashboard({
 
                             {/* Class Cells */}
                             {classrooms.map(c => {
-                              if (isLocked) {
-                                return (
-                                  <td key={c.id} className="p-1 text-center bg-amber-50/55 border-r border-gray-100 font-medium">
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700/80 uppercase font-sans select-none">
-                                      <Lock className="w-3 h-3 shrink-0" />
-                                      {lockReason}
-                                    </span>
-                                  </td>
-                                );
-                              }
-
                               const cell = timetableResult[c.id]?.[day]?.[periodIndex];
                               if (cell) {
                                 return (
@@ -968,12 +974,29 @@ export default function SolverDashboard({
                                   >
                                     <div className="bg-white border border-indigo-100 p-1.5 rounded-lg shadow-2xs hover:border-indigo-300">
                                       <div className="font-bold text-indigo-900 leading-tight truncate" title={cell.subject}>
-                                        {cell.subject}
+                                        {cell.subject === 'Kewalikelasan' || cell.subject === 'Wustho' ? cell.subject.toUpperCase() : cell.subject}
                                       </div>
                                       <div className="text-[10px] text-indigo-600 font-bold font-mono mt-0.5 bg-indigo-50 inline-block px-1.5 py-0.5 rounded-md">
                                         {cell.teacherCode}
                                       </div>
                                     </div>
+                                  </td>
+                                );
+                              }
+
+                              const classLock = timeConfig.lockedSlots.find(
+                                s => s.day === day && 
+                                     s.period === periodIndex && 
+                                     (!s.targetClassroomIds || s.targetClassroomIds.length === 0 || s.targetClassroomIds.includes(c.id))
+                              );
+
+                              if (classLock) {
+                                return (
+                                  <td key={c.id} className="p-1 text-center bg-amber-50/55 border-r border-gray-100 font-medium">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700/80 uppercase font-sans select-none" title={classLock.reason}>
+                                      <Lock className="w-3 h-3 shrink-0" />
+                                      {classLock.reason}
+                                    </span>
                                   </td>
                                 );
                               }
@@ -1027,20 +1050,6 @@ export default function SolverDashboard({
                           JP {pNum}
                         </td>
                         {timeConfig.days.map(day => {
-                          const isLocked = timeConfig.lockedSlots.some(s => s.day === day && s.period === periodIndex);
-                          const lockReason = timeConfig.lockedSlots.find(s => s.day === day && s.period === periodIndex)?.reason;
-
-                          if (isLocked) {
-                            return (
-                              <td key={day} className="p-3 text-center bg-amber-50/60 font-medium">
-                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-800 uppercase bg-amber-100/50 px-2 py-1 rounded-md">
-                                  <Lock className="w-3.5 h-3.5 shrink-0 text-amber-600" />
-                                  {lockReason}
-                                </span>
-                              </td>
-                            );
-                          }
-
                           const cell = timetableResult[selectedClassId]?.[day]?.[periodIndex];
                           if (cell) {
                             const teacher = getTeacherById(cell.teacherId);
@@ -1052,9 +1061,28 @@ export default function SolverDashboard({
                                 title="Klik untuk ubah / hapus manual"
                               >
                                 <div className="bg-indigo-50/40 border border-indigo-100/80 p-2.5 rounded-xl hover:border-indigo-300">
-                                  <span className="block text-xs font-bold text-indigo-955 leading-snug">{cell.subject}</span>
+                                  <span className="block text-xs font-bold text-indigo-955 leading-snug">
+                                    {cell.subject === 'Kewalikelasan' || cell.subject === 'Wustho' ? cell.subject.toUpperCase() : cell.subject}
+                                  </span>
                                   <span className="block text-[10px] text-gray-500 mt-1 font-medium">{teacher ? teacher.name : 'Unknown'} ({cell.teacherCode})</span>
                                 </div>
+                              </td>
+                            );
+                          }
+
+                          const classLock = timeConfig.lockedSlots.find(
+                            s => s.day === day && 
+                                 s.period === periodIndex && 
+                                 (!s.targetClassroomIds || s.targetClassroomIds.length === 0 || s.targetClassroomIds.includes(selectedClassId))
+                          );
+
+                          if (classLock) {
+                            return (
+                              <td key={day} className="p-3 text-center bg-amber-50/60 font-medium">
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-800 uppercase bg-amber-100/50 px-2 py-1 rounded-md" title={classLock.reason}>
+                                  <Lock className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                                  {classLock.reason}
+                                </span>
                               </td>
                             );
                           }

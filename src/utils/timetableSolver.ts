@@ -109,15 +109,19 @@ export function generateTimetable(
   const globalLockedSet = new Set<string>();
   const classroomLockedSet = new Set<string>(); // key: `${classroomId}-${day}-${period}`
 
-  timeConfig.lockedSlots.forEach(slot => {
-    if (slot.targetClassroomIds && slot.targetClassroomIds.length > 0) {
-      slot.targetClassroomIds.forEach(cId => {
-        classroomLockedSet.add(`${cId}-${slot.day}-${slot.period}`);
-      });
-    } else {
-      globalLockedSet.add(`${slot.day}-${slot.period}`);
-    }
-  });
+  if (!timeConfig.ignoreLockedSlots) {
+    timeConfig.lockedSlots.forEach(slot => {
+      if (slot.targetClassroomIds && slot.targetClassroomIds.length > 0) {
+        slot.targetClassroomIds.forEach(cId => {
+          classroomLockedSet.add(`${cId}-${slot.day}-${slot.period}`);
+        });
+      } else {
+        globalLockedSet.add(`${slot.day}-${slot.period}`);
+      }
+    });
+  } else {
+    onLog('[AI Solver] Opsi "Abaikan Penguncian Waktu" aktif. Seluruh jam kegiatan khusus atau slot terkunci dilonggarkan demi mencapai hasil target 100%.', 'warning');
+  }
 
   // Automatically lock periods that exceed the day's custom schedule capacity
   timeConfig.days.forEach(day => {
@@ -168,7 +172,8 @@ export function generateTimetable(
     const isTeamTeacher = ['t_tim_guru_wustha', 't_tim_ekstra', 't_wali_kelas'].includes(teacher.id);
     if (isTeamTeacher) continue;
 
-    const teacherWorkloads = validWorkloads.filter(w => w.teacherId === teacher.id);
+    // Kewalikelasan and Wustho do not count towards teacher's general weekly workload limits (kegiatan khusus non-KBM umum)
+    const teacherWorkloads = validWorkloads.filter(w => w.teacherId === teacher.id && w.subject !== 'Kewalikelasan' && w.subject !== 'Wustho');
     const totalTeacherJp = teacherWorkloads.reduce((sum, w) => sum + w.weeklyJp, 0);
 
     if (totalTeacherJp === 0) continue;
@@ -388,7 +393,7 @@ export function generateTimetable(
       // 1. Check end bounds
       if (startPeriod + block.size > periodsPerDay) return false;
 
-      const isTeamTeacher = ['t_tim_guru_wustha', 't_tim_ekstra', 't_wali_kelas'].includes(wl.teacherId) || wl.subject === 'Wustho';
+      const isTeamTeacher = ['t_tim_guru_wustha', 't_tim_ekstra', 't_wali_kelas'].includes(wl.teacherId) || wl.subject === 'Wustho' || wl.subject === 'Kewalikelasan';
 
       // 2. Check teacher daily JP limit (with offset relaxation)
       if (!isTeamTeacher) {

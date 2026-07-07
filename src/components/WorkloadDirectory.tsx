@@ -49,7 +49,7 @@ export default function WorkloadDirectory({
 
   const getTeacherCurrentTotalJp = (tId: string) => {
     return workloads
-      .filter(w => w.teacherId === tId)
+      .filter(w => w.teacherId === tId && w.subject !== 'Kewalikelasan' && w.subject !== 'Wustho')
       .reduce((sum, w) => sum + w.weeklyJp, 0);
   };
 

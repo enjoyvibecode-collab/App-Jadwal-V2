@@ -1076,12 +1076,18 @@ function ClassroomPrintSheet({
                           {row.label}
                         </td>
                       ) : cell ? (
-                        <td className="p-1 text-left leading-tight">
-                          <div className="font-bold text-black text-[9.5px] truncate max-w-[170px]">{cell.subject}</div>
-                          <div className="text-[8px] text-indigo-900 font-bold tracking-tight mt-0.5 truncate max-w-[170px]">
-                            [{cell.teacherCode}] {getTeacherName(cell.teacherId)}
-                          </div>
-                        </td>
+                        cell.subject === 'Kewalikelasan' || cell.subject === 'Wustho' ? (
+                          <td className="p-1 text-center font-black uppercase tracking-wider text-[8.5px] bg-amber-50/50 text-amber-955 font-sans leading-none py-2">
+                            {cell.subject}
+                          </td>
+                        ) : (
+                          <td className="p-1 text-left leading-tight">
+                            <div className="font-bold text-black text-[9.5px] truncate max-w-[170px]">{cell.subject}</div>
+                            <div className="text-[8px] text-indigo-900 font-bold tracking-tight mt-0.5 truncate max-w-[170px]">
+                              [{cell.teacherCode}] {getTeacherName(cell.teacherId)}
+                            </div>
+                          </td>
+                        )
                       ) : (
                         <td className="p-1 text-gray-400 italic font-normal text-center">
                           -
@@ -1135,12 +1141,18 @@ function ClassroomPrintSheet({
                           {row.label}
                         </td>
                       ) : cell ? (
-                        <td className="p-1 text-left leading-tight">
-                          <div className="font-bold text-black text-[9.5px] truncate max-w-[170px]">{cell.subject}</div>
-                          <div className="text-[8px] text-indigo-900 font-bold tracking-tight mt-0.5 truncate max-w-[170px]">
-                            [{cell.teacherCode}] {getTeacherName(cell.teacherId)}
-                          </div>
-                        </td>
+                        cell.subject === 'Kewalikelasan' || cell.subject === 'Wustho' ? (
+                          <td className="p-1 text-center font-black uppercase tracking-wider text-[8.5px] bg-amber-50/50 text-amber-955 font-sans leading-none py-2">
+                            {cell.subject}
+                          </td>
+                        ) : (
+                          <td className="p-1 text-left leading-tight">
+                            <div className="font-bold text-black text-[9.5px] truncate max-w-[170px]">{cell.subject}</div>
+                            <div className="text-[8px] text-indigo-900 font-bold tracking-tight mt-0.5 truncate max-w-[170px]">
+                              [{cell.teacherCode}] {getTeacherName(cell.teacherId)}
+                            </div>
+                          </td>
+                        )
                       ) : (
                         <td className="p-1 text-gray-400 italic font-normal text-center">
                           -
@@ -1635,12 +1647,19 @@ function MasterPrintSheet({
                                 : null;
 
                               if (cell) {
+                                const isSpecialActivity = cell.subject === 'Kewalikelasan' || cell.subject === 'Wustho';
                                 return (
-                                  <td key={c.id} className="p-1 border-r border-black last:border-r-0 bg-indigo-50/5 text-center leading-none">
-                                    {/* Numeric Teacher Code is highlighted exactly like the screenshot */}
-                                    <span className="block font-black text-indigo-900 text-[9.5px]">{cell.teacherCode}</span>
-                                    {/* Subject name is printed in tiny font beneath */}
-                                    <span className="block text-[6.5px] text-gray-500 font-sans tracking-tight mt-0.5 truncate max-w-[50px] mx-auto">{cell.subject}</span>
+                                  <td key={c.id} className={`p-1 border-r border-black last:border-r-0 text-center leading-none ${isSpecialActivity ? 'bg-amber-50/50' : 'bg-indigo-50/5'}`}>
+                                    {isSpecialActivity ? (
+                                      <span className="block font-black text-amber-900 text-[6.5px] leading-tight font-sans tracking-tighter uppercase whitespace-normal break-words py-0.5">{cell.subject === 'Kewalikelasan' ? 'WK' : 'WUSTHO'}</span>
+                                    ) : (
+                                      <>
+                                        {/* Numeric Teacher Code is highlighted exactly like the screenshot */}
+                                        <span className="block font-black text-indigo-900 text-[9.5px]">{cell.teacherCode}</span>
+                                        {/* Subject name is printed in tiny font beneath */}
+                                        <span className="block text-[6.5px] text-gray-500 font-sans tracking-tight mt-0.5 truncate max-w-[50px] mx-auto">{cell.subject}</span>
+                                      </>
+                                    )}
                                   </td>
                                 );
                               }

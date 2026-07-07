@@ -1,0 +1,8 @@
+{
+  "name": "App Jadwal Versi 2",
+  "description": "Aplikasi pembuat jadwal pelajaran sekolah anti-bentrok dengan manajemen konfigurasi waktu, data guru, data kelas, dan alokasi beban mengajar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

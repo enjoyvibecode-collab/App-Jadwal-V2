@@ -673,7 +673,7 @@ export default function TimeSettings({ config, onChange, classrooms = [] }: Time
                 });
 
                 // Add Wustho for each classroom based on grade
-                const class7Ids = classrooms.filter(c => c.name.trim().startsWith('7') || c.name.trim().toLowerCase().startsWith('vii')).map(c => c.id);
+                const class7Ids = classrooms.filter(c => c.name.trim().startsWith('7') || (c.name.trim().toLowerCase().startsWith('vii') && !c.name.trim().toLowerCase().startsWith('viii'))).map(c => c.id);
                 const class8Ids = classrooms.filter(c => c.name.trim().startsWith('8') || c.name.trim().toLowerCase().startsWith('viii')).map(c => c.id);
                 const class9Ids = classrooms.filter(c => c.name.trim().startsWith('9') || c.name.trim().toLowerCase().startsWith('ix')).map(c => c.id);
 

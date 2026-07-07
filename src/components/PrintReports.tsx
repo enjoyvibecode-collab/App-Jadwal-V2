@@ -1515,8 +1515,8 @@ function MasterPrintSheet({
   const gradeGroups: GradeGroup[] = [];
   sortedClassrooms.forEach(c => {
     let grade = "LAINNYA";
-    if (c.name.startsWith("VII")) grade = "KELAS VII";
-    else if (c.name.startsWith("VIII")) grade = "KELAS VIII";
+    if (c.name.startsWith("VIII")) grade = "KELAS VIII";
+    else if (c.name.startsWith("VII")) grade = "KELAS VII";
     else if (c.name.startsWith("IX")) grade = "KELAS IX";
     else {
       const match = c.name.match(/^(\d+)/);

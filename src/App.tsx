@@ -742,7 +742,18 @@ export default function App() {
 
   const totalPeriodsInWeek = trueTotalKbmCapacity;
   const lockedCount = timeConfig.lockedSlots.length;
-  const availablePeriodsPerClass = trueTotalKbmCapacity - lockedCount;
+
+  const getClassroomAvailableCapacity = (classroomId: string) => {
+    const activeLocksCount = timeConfig.lockedSlots.filter(
+      slot => !slot.targetClassroomIds || slot.targetClassroomIds.length === 0 || slot.targetClassroomIds.includes(classroomId)
+    ).length;
+    return trueTotalKbmCapacity - activeLocksCount;
+  };
+
+  const availablePeriodsPerClass = classrooms.length > 0
+    ? Math.round(classrooms.reduce((sum, c) => sum + getClassroomAvailableCapacity(c.id), 0) / classrooms.length)
+    : trueTotalKbmCapacity - lockedCount;
+
   const totalWorkloadWeeklyJp = workloads.reduce((sum, w) => sum + w.weeklyJp, 0);
 
   return (
@@ -1121,14 +1132,15 @@ export default function App() {
                     {classrooms.map(room => {
                       const roomWorkloads = workloads.filter(w => w.classroomId === room.id);
                       const totalAllocatedJp = roomWorkloads.reduce((sum, w) => sum + w.weeklyJp, 0);
-                      const percentage = Math.min(100, (totalAllocatedJp / availablePeriodsPerClass) * 100);
+                      const roomCapacity = getClassroomAvailableCapacity(room.id);
+                      const percentage = Math.min(100, (totalAllocatedJp / roomCapacity) * 100);
 
                       return (
                         <div key={room.id} className="bg-slate-50/55 border border-slate-100 p-4 rounded-xl space-y-3 hover:border-emerald-100 transition-all">
                           <div className="flex justify-between items-center">
                             <span className="font-bold text-slate-800 font-mono text-sm">{room.name}</span>
                             <span className="text-xs text-slate-500 font-bold font-mono">
-                              {totalAllocatedJp} / {availablePeriodsPerClass} JP
+                              {totalAllocatedJp} / {roomCapacity} JP
                             </span>
                           </div>
                           {/* Progress bar */}

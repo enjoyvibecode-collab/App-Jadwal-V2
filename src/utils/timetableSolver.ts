@@ -524,11 +524,16 @@ export function generateTimetable(
           }
         } else if (subject === 'Wustho') {
           const className = classrooms.find(c => c.id === wl.classroomId)?.name || '';
-          const grade = className.trim().charAt(0);
+          const upperName = className.trim().toUpperCase();
           let targetDay: DayOfWeek | null = null;
-          if (grade === '7') targetDay = 'Senin';
-          else if (grade === '8') targetDay = 'Selasa';
-          else if (grade === '9') targetDay = 'Rabu';
+
+          if (upperName.startsWith('9') || upperName.startsWith('IX')) {
+            targetDay = 'Rabu';
+          } else if (upperName.startsWith('8') || upperName.startsWith('VIII')) {
+            targetDay = 'Selasa';
+          } else if (upperName.startsWith('7') || upperName.startsWith('VII')) {
+            targetDay = 'Senin';
+          }
 
           if (targetDay) {
             const p = getPeriodIndexAfterSecondRecess(targetDay);

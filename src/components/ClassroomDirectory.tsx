@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Classroom, Teacher, Workload, TimeConfig, LockedSlot, DayOfWeek } from '../types';
 import { 
   Plus, Trash2, Search, BookOpen, AlertCircle, Sparkles, User, 
-  Clock, Lock, Unlock, X, BarChart3, GraduationCap, ArrowRight, Settings2, Info
+  Clock, Lock, Unlock, X, BarChart3, GraduationCap, ArrowRight, Settings2, Info,
+  Users, CheckCircle
 } from 'lucide-react';
 
 interface ClassroomDirectoryProps {
@@ -37,6 +38,11 @@ export default function ClassroomDirectory({
   const [classNameInput, setClassNameInput] = useState('');
   const [selectedWaliKelasId, setSelectedWaliKelasId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  
+  // Bulk copy state
+  const [isBulkCopyOpen, setIsBulkCopyOpen] = useState(false);
+  const [selectedTargetClassrooms, setSelectedTargetClassrooms] = useState<string[]>([]);
+  const [bulkSearchQuery, setBulkSearchQuery] = useState('');
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -406,7 +412,12 @@ export default function ClassroomDirectory({
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedClassroom(null)}
+                onClick={() => {
+                  setSelectedClassroom(null);
+                  setIsBulkCopyOpen(false);
+                  setSelectedTargetClassrooms([]);
+                  setBulkSearchQuery('');
+                }}
                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -754,6 +765,169 @@ export default function ClassroomDirectory({
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Bulk Copy Section */}
+                  <div className="mt-4 border-t border-gray-150 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsBulkCopyOpen(!isBulkCopyOpen);
+                        setSelectedTargetClassrooms([]);
+                        setBulkSearchQuery('');
+                      }}
+                      className="w-full flex items-center justify-between px-4 py-2.5 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-700 transition-all cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-indigo-600" />
+                        {isBulkCopyOpen ? 'Sembunyikan Menu Salin Cepat' : 'Terapkan Aturan Kunci ini ke Kelas Lain (Salin Cepat)...'}
+                      </span>
+                      <span className="text-[10px] bg-white border border-indigo-200 px-2 py-0.5 rounded-full font-mono font-bold">
+                        {isBulkCopyOpen ? 'TUTUP' : 'BUKA'}
+                      </span>
+                    </button>
+
+                    {isBulkCopyOpen && (
+                      <div className="mt-3 bg-slate-50 border border-gray-150 rounded-xl p-3.5 space-y-3 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <p className="text-[11px] font-bold text-gray-700">Pilih Kelas yang Ingin Disamakan Kuncinya:</p>
+                            <p className="text-[10px] text-gray-500">Menyalin persis seluruh slot kunci khusus kelas {selectedClassroom.name} ke kelas terpilih.</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const otherClassIds = classrooms.filter(c => c.id !== selectedClassroom.id).map(c => c.id);
+                                setSelectedTargetClassrooms(otherClassIds);
+                              }}
+                              className="px-2 py-1 bg-white border border-gray-200 hover:bg-gray-100 text-[10px] font-bold text-gray-600 rounded-md cursor-pointer transition-all"
+                            >
+                              Pilih Semua
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTargetClassrooms([])}
+                              className="px-2 py-1 bg-white border border-gray-200 hover:bg-gray-100 text-[10px] font-bold text-gray-600 rounded-md cursor-pointer transition-all"
+                            >
+                              Hapus Pilihan
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Search bar inside bulk copy */}
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                          <input
+                            type="text"
+                            placeholder="Cari kelas..."
+                            value={bulkSearchQuery}
+                            onChange={(e) => setBulkSearchQuery(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-gray-800 placeholder-gray-400"
+                          />
+                        </div>
+
+                        {/* Classrooms grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[140px] overflow-y-auto pr-1">
+                          {classrooms
+                            .filter(c => c.id !== selectedClassroom.id)
+                            .filter(c => c.name.toLowerCase().includes(bulkSearchQuery.toLowerCase()))
+                            .map(c => {
+                              const isChecked = selectedTargetClassrooms.includes(c.id);
+                              return (
+                                <label
+                                  key={c.id}
+                                  className={`flex items-center gap-2 p-2 border rounded-lg text-xs cursor-pointer select-none transition-all ${
+                                    isChecked
+                                      ? 'bg-indigo-50/50 border-indigo-200 font-bold text-indigo-950'
+                                      : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      if (isChecked) {
+                                        setSelectedTargetClassrooms(selectedTargetClassrooms.filter(id => id !== c.id));
+                                      } else {
+                                        setSelectedTargetClassrooms([...selectedTargetClassrooms, c.id]);
+                                      }
+                                    }}
+                                    className="rounded-sm text-indigo-600 focus:ring-indigo-500/20 w-3.5 h-3.5 cursor-pointer"
+                                  />
+                                  <span className="font-mono bg-indigo-50 text-[10px] font-bold text-indigo-700 px-1.5 py-0.2 rounded shrink-0">KLS</span>
+                                  <span className="truncate">{c.name}</span>
+                                </label>
+                              );
+                            })}
+                        </div>
+
+                        {/* Submit Button */}
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            disabled={selectedTargetClassrooms.length === 0}
+                            onClick={() => {
+                              // Execute Classroom copy
+                              // 1. Get source classroom locks
+                              const sourceLockedSlots = timeConfig.lockedSlots.filter(
+                                s => s.targetClassroomIds?.includes(selectedClassroom.id)
+                              );
+
+                              // 2. Clear all custom classroom locks for targetClassrooms
+                              let updatedLockedSlots = timeConfig.lockedSlots.map(s => {
+                                if (s.targetClassroomIds) {
+                                  return {
+                                    ...s,
+                                    targetClassroomIds: s.targetClassroomIds.filter(id => !selectedTargetClassrooms.includes(id))
+                                  };
+                                }
+                                return s;
+                              }).filter(s => !s.targetClassroomIds || s.targetClassroomIds.length > 0 || s.reason !== 'KBM Terkunci');
+
+                              // 3. Re-apply locks from source to all selected targetClassrooms
+                              sourceLockedSlots.forEach(sourceLock => {
+                                const existingIndex = updatedLockedSlots.findIndex(
+                                  s => s.day === sourceLock.day && s.period === sourceLock.period && s.targetClassroomIds && s.targetClassroomIds.length > 0
+                                );
+
+                                if (existingIndex !== -1) {
+                                  const prevTargets = updatedLockedSlots[existingIndex].targetClassroomIds || [];
+                                  const uniqueTargets = Array.from(new Set([...prevTargets, ...selectedTargetClassrooms]));
+                                  updatedLockedSlots[existingIndex] = {
+                                    ...updatedLockedSlots[existingIndex],
+                                    targetClassroomIds: uniqueTargets
+                                  };
+                                } else {
+                                  updatedLockedSlots.push({
+                                    day: sourceLock.day,
+                                    period: sourceLock.period,
+                                    reason: sourceLock.reason || 'KBM Terkunci',
+                                    targetClassroomIds: [...selectedTargetClassrooms]
+                                  });
+                                }
+                              });
+
+                              onUpdateTimeConfig({
+                                ...timeConfig,
+                                lockedSlots: updatedLockedSlots
+                              });
+
+                              setSelectedTargetClassrooms([]);
+                              setIsBulkCopyOpen(false);
+                            }}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              selectedTargetClassrooms.length > 0
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <CheckCircle className="w-4 h-4 shrink-0" />
+                            Salin Kunci ke {selectedTargetClassrooms.length} Kelas Terpilih
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -767,7 +941,12 @@ export default function ClassroomDirectory({
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedClassroom(null)}
+                onClick={() => {
+                  setSelectedClassroom(null);
+                  setIsBulkCopyOpen(false);
+                  setSelectedTargetClassrooms([]);
+                  setBulkSearchQuery('');
+                }}
                 className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md transition-all cursor-pointer"
               >
                 Selesai &amp; Tutup

@@ -44,7 +44,22 @@ export const DEMO_TEACHERS: Teacher[] = [
   { id: 't_deden', name: 'Deden', nip: '-', code: 'DDN', maxJpPerDay: 8 },
   { id: 't_mira', name: 'Mira', nip: '-', code: 'MIR', maxJpPerDay: 8 },
   { id: 't_asep', name: 'Asep', nip: '-', code: 'ASP', maxJpPerDay: 8 },
-  { id: 't_dita', name: 'Dita', nip: '-', code: 'DIT', maxJpPerDay: 8 },
+  {
+    id: 't_dita',
+    name: 'Dita',
+    nip: '-',
+    code: 'DIT',
+    maxJpPerDay: 8,
+    unavailableSlots: [
+      { day: 'Senin', period: 9 }, // JP 10
+      { day: 'Kamis', period: 9 }, // JP 10
+      { day: 'Jumat', period: 5 }, // JP 6
+      { day: 'Jumat', period: 6 }, // JP 7
+      { day: 'Jumat', period: 7 }, // JP 8
+      { day: 'Jumat', period: 8 }, // JP 9
+      { day: 'Jumat', period: 9 }  // JP 10
+    ]
+  },
   { id: 't_aris', name: 'Aris', nip: '-', code: 'ARS', maxJpPerDay: 8 },
   { id: 't_dian', name: 'Dian', nip: '-', code: 'DIN', maxJpPerDay: 8 },
   { id: 't_h_didi', name: 'H. Didi', nip: '-', code: 'DID', maxJpPerDay: 8 },

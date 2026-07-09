@@ -7,7 +7,7 @@ interface TeacherDirectoryProps {
   timeConfig: TimeConfig;
   onAdd: (teacher: Omit<Teacher, 'id'>) => void;
   onDelete: (id: string) => void;
-  onUpdate: (teacher: Teacher) => void;
+  onUpdate: (teacher: Teacher | Teacher[]) => void;
 }
 
 export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete, onUpdate }: TeacherDirectoryProps) {
@@ -25,6 +25,11 @@ export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete
   
   // Error states
   const [error, setError] = useState<string | null>(null);
+
+  // Bulk copy state
+  const [isBulkCopyOpen, setIsBulkCopyOpen] = useState(false);
+  const [selectedTargetTeachers, setSelectedTargetTeachers] = useState<string[]>([]);
+  const [bulkSearchQuery, setBulkSearchQuery] = useState('');
 
   // Check if teacher code already exists
   const isCodeDuplicate = (checkedCode: string) => {
@@ -380,7 +385,12 @@ export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedTeacherForRest(null)}
+                onClick={() => {
+                  setSelectedTeacherForRest(null);
+                  setIsBulkCopyOpen(false);
+                  setSelectedTargetTeachers([]);
+                  setBulkSearchQuery('');
+                }}
                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -524,6 +534,131 @@ export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete
               </table>
             </div>
 
+            {/* Bulk Copy Section */}
+            <div className="mt-4 border-t border-gray-150 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBulkCopyOpen(!isBulkCopyOpen);
+                  setSelectedTargetTeachers([]);
+                  setBulkSearchQuery('');
+                }}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-700 transition-all cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-indigo-600" />
+                  {isBulkCopyOpen ? 'Sembunyikan Menu Salin Cepat' : 'Terapkan Jadwal Libur ini ke Guru Lain (Salin Cepat)...'}
+                </span>
+                <span className="text-[10px] bg-white border border-indigo-200 px-2 py-0.5 rounded-full font-mono font-bold">
+                  {isBulkCopyOpen ? 'TUTUP' : 'BUKA'}
+                </span>
+              </button>
+
+              {isBulkCopyOpen && (
+                <div className="mt-3 bg-slate-50 border border-gray-150 rounded-xl p-3.5 space-y-3 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-700">Pilih Guru yang Ingin Disamakan Batasannya:</p>
+                      <p className="text-[10px] text-gray-500">Menyalin persis seluruh jadwal libur {selectedTeacherForRest.name} ke guru terpilih.</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const otherTeacherIds = teachers.filter(t => t.id !== selectedTeacherForRest.id).map(t => t.id);
+                          setSelectedTargetTeachers(otherTeacherIds);
+                        }}
+                        className="px-2 py-1 bg-white border border-gray-200 hover:bg-gray-100 text-[10px] font-bold text-gray-600 rounded-md cursor-pointer transition-colors"
+                      >
+                        Pilih Semua
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTargetTeachers([])}
+                        className="px-2 py-1 bg-white border border-gray-200 hover:bg-gray-100 text-[10px] font-bold text-gray-600 rounded-md cursor-pointer transition-colors"
+                      >
+                        Hapus Pilihan
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search bar inside bulk copy */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Cari nama guru atau kode inisial..."
+                      value={bulkSearchQuery}
+                      onChange={(e) => setBulkSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-gray-800 placeholder-gray-400"
+                    />
+                  </div>
+
+                  {/* Teachers grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[140px] overflow-y-auto pr-1">
+                    {teachers
+                      .filter(t => t.id !== selectedTeacherForRest.id)
+                      .filter(t => t.name.toLowerCase().includes(bulkSearchQuery.toLowerCase()) || t.code.toLowerCase().includes(bulkSearchQuery.toLowerCase()))
+                      .map(t => {
+                        const isChecked = selectedTargetTeachers.includes(t.id);
+                        return (
+                          <label
+                            key={t.id}
+                            className={`flex items-center gap-2 p-2 border rounded-lg text-xs cursor-pointer select-none transition-all ${
+                              isChecked
+                                ? 'bg-indigo-50/50 border-indigo-200 font-bold text-indigo-950'
+                                : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setSelectedTargetTeachers(selectedTargetTeachers.filter(id => id !== t.id));
+                                } else {
+                                  setSelectedTargetTeachers([...selectedTargetTeachers, t.id]);
+                                }
+                              }}
+                              className="rounded-sm text-indigo-600 focus:ring-indigo-500/20 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span className="font-mono bg-indigo-50 text-[10px] font-bold text-indigo-700 px-1 py-0.2 rounded shrink-0">{t.code}</span>
+                            <span className="truncate">{t.name}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      disabled={selectedTargetTeachers.length === 0}
+                      onClick={() => {
+                        const updatedTeachers = teachers
+                          .filter(t => selectedTargetTeachers.includes(t.id))
+                          .map(t => ({
+                            ...t,
+                            unavailableSlots: [...(selectedTeacherForRest.unavailableSlots || [])]
+                          }));
+                        onUpdate(updatedTeachers);
+                        setSelectedTargetTeachers([]);
+                        setIsBulkCopyOpen(false);
+                      }}
+                      className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                        selectedTargetTeachers.length > 0
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <CheckCircle className="w-4 h-4 shrink-0" />
+                      Salin Jadwal ke {selectedTargetTeachers.length} Guru Terpilih
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Modal Actions */}
             <div className="flex items-center justify-between border-t border-gray-100 pt-4 mt-4">
               <span className="text-[11px] text-gray-500 font-medium">
@@ -531,7 +666,12 @@ export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedTeacherForRest(null)}
+                onClick={() => {
+                  setSelectedTeacherForRest(null);
+                  setIsBulkCopyOpen(false);
+                  setSelectedTargetTeachers([]);
+                  setBulkSearchQuery('');
+                }}
                 className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md transition-all cursor-pointer"
               >
                 Selesai &amp; Tutup

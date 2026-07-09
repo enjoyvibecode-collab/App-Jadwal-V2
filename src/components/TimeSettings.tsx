@@ -675,13 +675,21 @@ export default function TimeSettings({ config, onChange, classrooms = [] }: Time
                 }
 
                 let updatedLockedSlots = config.lockedSlots.filter(
-                  s => s.reason !== 'Kewalikelasan' && s.reason !== 'Wustho'
+                  s => s.reason !== 'Kewalikelasan' && s.reason !== 'Wustho' && s.reason !== 'Upacara' && s.reason !== 'Upacara Bendera'
                 );
 
-                // Add Kewalikelasan (global lock for all classes on Monday, Jam ke-1 / periodIndex 0)
+                // Add Upacara Bendera (global lock for all classes on Monday, Jam ke-1 / periodIndex 0)
                 updatedLockedSlots.push({
                   day: 'Senin',
                   period: 0,
+                  reason: 'Upacara Bendera',
+                  targetClassroomIds: [] // empty means all classrooms
+                });
+
+                // Add Kewalikelasan (global lock for all classes on Monday, Jam ke-2 / periodIndex 1)
+                updatedLockedSlots.push({
+                  day: 'Senin',
+                  period: 1,
                   reason: 'Kewalikelasan',
                   targetClassroomIds: [] // empty means all classrooms
                 });

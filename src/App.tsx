@@ -32,10 +32,45 @@ import {
   Home
 } from 'lucide-react';
 
+const class7Ids = ['c_7a', 'c_7b', 'c_7c', 'c_7d', 'c_7e', 'c_7f', 'c_7g', 'c_7h', 'c_7i', 'c_7j', 'c_7k'];
+const class8Ids = ['c_8a', 'c_8b', 'c_8c', 'c_8d', 'c_8e', 'c_8f', 'c_8g', 'c_8h', 'c_8i', 'c_8j', 'c_8k'];
+const class9Ids = ['c_9a', 'c_9b', 'c_9c', 'c_9d', 'c_9e', 'c_9f', 'c_9g', 'c_9h', 'c_9i', 'c_9j', 'c_9k'];
+
 const DEFAULT_TIME_CONFIG: TimeConfig = {
   days: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
   periodsPerDay: 10,
-  lockedSlots: [],
+  lockedSlots: [
+    {
+      day: 'Senin',
+      period: 0,
+      reason: 'Upacara Bendera',
+      targetClassroomIds: []
+    },
+    {
+      day: 'Senin',
+      period: 1,
+      reason: 'Kewalikelasan',
+      targetClassroomIds: []
+    },
+    {
+      day: 'Senin',
+      period: 5,
+      reason: 'Wustho',
+      targetClassroomIds: class7Ids
+    },
+    {
+      day: 'Selasa',
+      period: 6,
+      reason: 'Wustho',
+      targetClassroomIds: class8Ids
+    },
+    {
+      day: 'Rabu',
+      period: 6,
+      reason: 'Wustho',
+      targetClassroomIds: class9Ids
+    }
+  ],
   customSchedules: DEFAULT_OFFICIAL_SCHEDULE,
   splittingRule: 'ideal'
 };
@@ -57,13 +92,6 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Heal: remove legacy locked slots that block active lesson periods
-        if (parsed.lockedSlots && parsed.lockedSlots.length > 0) {
-          parsed.lockedSlots = parsed.lockedSlots.filter((slot: any) => {
-            const reason = (slot.reason || '').toLowerCase();
-            return !reason.includes('istirahat') && !reason.includes('upacara');
-          });
-        }
         return parsed;
       } catch (e) {
         return DEFAULT_TIME_CONFIG;
@@ -184,9 +212,15 @@ export default function App() {
     showToast(`Guru ${teacher ? teacher.name : ''} dan kontrak bebannya berhasil dihapus.`, 'info');
   };
 
-  const handleUpdateTeacher = (updatedTeacher: Teacher) => {
-    setTeachers(teachers.map(t => t.id === updatedTeacher.id ? updatedTeacher : t));
-    showToast(`Data atau batasan berhalangan guru ${updatedTeacher.name} berhasil disimpan.`);
+  const handleUpdateTeacher = (updated: Teacher | Teacher[]) => {
+    const arr = Array.isArray(updated) ? updated : [updated];
+    const map = new Map(arr.map(t => [t.id, t]));
+    setTeachers(prev => prev.map(t => map.has(t.id) ? map.get(t.id)! : t));
+    if (arr.length === 1) {
+      showToast(`Data atau batasan berhalangan guru ${arr[0].name} berhasil disimpan.`);
+    } else {
+      showToast(`Batasan berhalangan berhasil disalin ke ${arr.length} guru.`);
+    }
   };
 
   const handleUpdateClassroom = (updatedClassroom: Classroom) => {

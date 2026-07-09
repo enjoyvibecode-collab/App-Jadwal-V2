@@ -424,7 +424,7 @@ export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete
                     const allSlots: { day: string; period: number }[] = [];
                     timeConfig.days.forEach(day => {
                       for (let p = 0; p < timeConfig.periodsPerDay; p++) {
-                        const isGlobalLock = timeConfig.lockedSlots.some(s => s.day === day && s.period === p);
+                        const isGlobalLock = timeConfig.lockedSlots.some(s => s.day === day && s.period === p && (!s.targetClassroomIds || s.targetClassroomIds.length === 0));
                         if (!isGlobalLock) {
                           allSlots.push({ day, period: p });
                         }
@@ -461,9 +461,9 @@ export default function TeacherDirectory({ teachers, timeConfig, onAdd, onDelete
                         {day}
                       </td>
                       {Array.from({ length: timeConfig.periodsPerDay }).map((_, pIndex) => {
-                        // Check if global lock
+                        // Check if global lock (no targets or empty)
                         const globalLock = timeConfig.lockedSlots.find(
-                          (s) => s.day === day && s.period === pIndex
+                          (s) => s.day === day && s.period === pIndex && (!s.targetClassroomIds || s.targetClassroomIds.length === 0)
                         );
                         
                         if (globalLock) {

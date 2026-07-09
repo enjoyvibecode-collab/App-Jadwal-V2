@@ -96,6 +96,26 @@ export default function App() {
     localStorage.setItem('school_time_config', JSON.stringify(timeConfig));
   }, [timeConfig]);
 
+  // Sync periodsPerDay with the actual maximum KBM across active days
+  useEffect(() => {
+    let maxPeriods = 0;
+    timeConfig.days.forEach(day => {
+      const schedule = timeConfig.customSchedules?.[day] || DEFAULT_OFFICIAL_SCHEDULE[day] || [];
+      const kbmCount = schedule.filter(r => !r.isSpecial).length;
+      if (kbmCount > maxPeriods) {
+        maxPeriods = kbmCount;
+      }
+    });
+    
+    const finalPeriods = maxPeriods > 0 ? maxPeriods : 1;
+    if (timeConfig.periodsPerDay !== finalPeriods) {
+      setTimeConfig(prev => ({
+        ...prev,
+        periodsPerDay: finalPeriods
+      }));
+    }
+  }, [timeConfig.customSchedules, timeConfig.days, timeConfig.periodsPerDay]);
+
   useEffect(() => {
     localStorage.setItem('school_teachers', JSON.stringify(teachers));
   }, [teachers]);
@@ -167,6 +187,11 @@ export default function App() {
   const handleUpdateTeacher = (updatedTeacher: Teacher) => {
     setTeachers(teachers.map(t => t.id === updatedTeacher.id ? updatedTeacher : t));
     showToast(`Data atau batasan berhalangan guru ${updatedTeacher.name} berhasil disimpan.`);
+  };
+
+  const handleUpdateClassroom = (updatedClassroom: Classroom) => {
+    setClassrooms(classrooms.map(c => c.id === updatedClassroom.id ? updatedClassroom : c));
+    showToast(`Data kelas ${updatedClassroom.name} berhasil diperbarui.`);
   };
 
   const handleAddClassroom = (newRoom: Omit<Classroom, 'id'>) => {
@@ -1202,8 +1227,13 @@ export default function App() {
           {activeTab === 'classrooms' && (
             <ClassroomDirectory 
               classrooms={classrooms} 
+              teachers={teachers}
+              workloads={workloads}
+              timeConfig={timeConfig}
               onAdd={handleAddClassroom} 
               onDelete={handleDeleteClassroom} 
+              onUpdate={handleUpdateClassroom}
+              onUpdateTimeConfig={setTimeConfig}
             />
           )}
 

@@ -381,9 +381,9 @@ export default function SolverDashboard({
           const rowData = [day, `JP ${p + 1}`];
           
           classrooms.forEach(c => {
-            const isLocked = timeConfig.lockedSlots.some(slot => slot.day === day && slot.period === p);
+            const isLocked = timeConfig.lockedSlots.some(slot => slot.day === day && slot.period === p && (!slot.targetClassroomIds || slot.targetClassroomIds.length === 0 || slot.targetClassroomIds.includes(c.id)));
             if (isLocked) {
-              const lockReason = timeConfig.lockedSlots.find(slot => slot.day === day && slot.period === p)?.reason || 'Locked';
+              const lockReason = timeConfig.lockedSlots.find(slot => slot.day === day && slot.period === p && (!slot.targetClassroomIds || slot.targetClassroomIds.length === 0 || slot.targetClassroomIds.includes(c.id)))?.reason || 'Locked';
               rowData.push(`[TERKUNCI: ${lockReason}]`);
             } else {
               const cell = timetableResult[c.id]?.[day]?.[p];
@@ -414,9 +414,9 @@ export default function SolverDashboard({
         for (let p = 0; p < timeConfig.periodsPerDay; p++) {
           const rowData = [`JP ${p + 1}`];
           timeConfig.days.forEach(day => {
-            const isLocked = timeConfig.lockedSlots.some(slot => slot.day === day && slot.period === p);
+            const isLocked = timeConfig.lockedSlots.some(slot => slot.day === day && slot.period === p && (!slot.targetClassroomIds || slot.targetClassroomIds.length === 0 || slot.targetClassroomIds.includes(c.id)));
             if (isLocked) {
-              const lockReason = timeConfig.lockedSlots.find(slot => slot.day === day && slot.period === p)?.reason || 'Locked';
+              const lockReason = timeConfig.lockedSlots.find(slot => slot.day === day && slot.period === p && (!slot.targetClassroomIds || slot.targetClassroomIds.length === 0 || slot.targetClassroomIds.includes(c.id)))?.reason || 'Locked';
               rowData.push(`[TERKUNCI: ${lockReason}]`);
             } else {
               const cell = timetableResult[c.id]?.[day]?.[p];
@@ -448,9 +448,9 @@ export default function SolverDashboard({
         for (let p = 0; p < timeConfig.periodsPerDay; p++) {
           const rowData = [`JP ${p + 1}`];
           timeConfig.days.forEach(day => {
-            const isLocked = timeConfig.lockedSlots.some(slot => slot.day === day && slot.period === p);
+            const isLocked = timeConfig.lockedSlots.some(slot => slot.day === day && slot.period === p && (!slot.targetClassroomIds || slot.targetClassroomIds.length === 0));
             if (isLocked) {
-              const lockReason = timeConfig.lockedSlots.find(slot => slot.day === day && slot.period === p)?.reason || 'Locked';
+              const lockReason = timeConfig.lockedSlots.find(slot => slot.day === day && slot.period === p && (!slot.targetClassroomIds || slot.targetClassroomIds.length === 0))?.reason || 'Locked';
               rowData.push(`[TERKUNCI: ${lockReason}]`);
             } else {
               let taughtClass = '-';
@@ -1134,8 +1134,8 @@ export default function SolverDashboard({
                           JP {pNum}
                         </td>
                         {timeConfig.days.map(day => {
-                          const isLocked = timeConfig.lockedSlots.some(s => s.day === day && s.period === periodIndex);
-                          const lockReason = timeConfig.lockedSlots.find(s => s.day === day && s.period === periodIndex)?.reason;
+                          const isLocked = timeConfig.lockedSlots.some(s => s.day === day && s.period === periodIndex && (!s.targetClassroomIds || s.targetClassroomIds.length === 0));
+                          const lockReason = timeConfig.lockedSlots.find(s => s.day === day && s.period === periodIndex && (!s.targetClassroomIds || s.targetClassroomIds.length === 0))?.reason;
 
                           if (isLocked) {
                             return (

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DayOfWeek, TimeConfig, LockedSlot, ScheduleRow, DEFAULT_OFFICIAL_SCHEDULE, Classroom } from '../types';
-import { Lock, Unlock, Clock, AlertCircle, Info, Calendar, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Sliders, Settings } from 'lucide-react';
+import { Lock, Unlock, Clock, AlertCircle, Info, Calendar, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Sliders, Settings, X, CheckCircle, ShieldAlert } from 'lucide-react';
 
 interface TimeSettingsProps {
   config: TimeConfig;
@@ -14,6 +14,20 @@ const LOCK_PRESETS = ['Upacara Bendera', 'Istirahat', 'Kegiatan Keagamaan', 'Rap
 export default function TimeSettings({ config, onChange, classrooms = [] }: TimeSettingsProps) {
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>(config.days);
   const [periods, setPeriods] = useState<number>(config.periodsPerDay);
+
+  // Keep local periods state in sync with config.periodsPerDay
+  useEffect(() => {
+    setPeriods(config.periodsPerDay);
+  }, [config.periodsPerDay]);
+
+  // Keep local selectedDays in sync with config.days
+  useEffect(() => {
+    setSelectedDays(config.days);
+  }, [config.days]);
+  
+  // Custom non-blocking notification modal states
+  const [showAutoLockSuccessModal, setShowAutoLockSuccessModal] = useState(false);
+  const [showAutoLockErrorModal, setShowAutoLockErrorModal] = useState(false);
   
   // States for lock editor modal/popover
   const [activeLockCell, setActiveLockCell] = useState<{ day: DayOfWeek; period: number } | null>(null);
@@ -656,7 +670,7 @@ export default function TimeSettings({ config, onChange, classrooms = [] }: Time
               type="button"
               onClick={() => {
                 if (!classrooms || classrooms.length === 0) {
-                  alert('Gagal: Data kelas/rombel tidak ditemukan.');
+                  setShowAutoLockErrorModal(true);
                   return;
                 }
 
@@ -709,7 +723,7 @@ export default function TimeSettings({ config, onChange, classrooms = [] }: Time
                   lockedSlots: updatedLockedSlots
                 });
 
-                alert('Konfigurasi Kunci Kewalikelasan & Wustho Berhasil Diterapkan!\n\n1. Kewalikelasan: Hari Senin Jam ke-1 (Semua Kelas)\n2. Wustho Kelas 7: Hari Senin Jam ke-6 (Setelah Istirahat ke-2)\n3. Wustho Kelas 8: Hari Selasa Jam ke-7 (Setelah Istirahat ke-2)\n4. Wustho Kelas 9: Hari Rabu Jam ke-7 (Setelah Istirahat ke-1)\n\nMesin penjadwalan tidak akan menempatkan mapel lain di jam-jam ini.');
+                setShowAutoLockSuccessModal(true);
               }}
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl transition-all cursor-pointer shadow-xs"
             >
@@ -963,6 +977,106 @@ export default function TimeSettings({ config, onChange, classrooms = [] }: Time
                   Simpan Kunci
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Lock Success Modal */}
+      {showAutoLockSuccessModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-150 text-left">
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-gray-900">Kunci Otomatis Berhasil Diterapkan!</h3>
+                <p className="text-[11px] text-gray-500">Sistem berhasil memblokir jam-jam khusus berikut di jadwal.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 my-2">
+              <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-gray-200/60">
+                <div className="flex items-start gap-2.5 text-xs text-gray-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 animate-pulse"></span>
+                  <div>
+                    <strong className="text-gray-900 font-bold block">1. Kewalikelasan (Sistem Homeroom)</strong>
+                    <span className="text-gray-500 text-[11px]">Setiap hari <strong>Senin Jam ke-1</strong> dikunci global untuk semua rombel/kelas aktif.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-gray-700 border-t border-gray-150/60 pt-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5"></span>
+                  <div>
+                    <strong className="text-gray-900 font-bold block">2. Kegiatan Wustho Kelas VII</strong>
+                    <span className="text-gray-500 text-[11px]">Setiap hari <strong>Senin Jam ke-6</strong> dikunci khusus untuk seluruh kelas 7.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-gray-700 border-t border-gray-150/60 pt-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5"></span>
+                  <div>
+                    <strong className="text-gray-900 font-bold block">3. Kegiatan Wustho Kelas VIII</strong>
+                    <span className="text-gray-500 text-[11px]">Setiap hari <strong>Selasa Jam ke-7</strong> dikunci khusus untuk seluruh kelas 8.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-gray-700 border-t border-gray-150/60 pt-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5"></span>
+                  <div>
+                    <strong className="text-gray-900 font-bold block">4. Kegiatan Wustho Kelas IX</strong>
+                    <span className="text-gray-500 text-[11px]">Setiap hari <strong>Rabu Jam ke-7</strong> dikunci khusus untuk seluruh kelas 9.</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-amber-800 bg-amber-50/40 p-3 rounded-xl border border-amber-100 leading-normal font-semibold">
+                Mesin generator (AI Solver) secara otomatis akan melarang mata pelajaran umum ditempatkan pada jam-jam khusus ini untuk menjamin kelancaran KBM.
+              </p>
+            </div>
+
+            <div className="flex justify-end mt-4 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowAutoLockSuccessModal(false)}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Selesai &amp; Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Lock Error Modal */}
+      {showAutoLockErrorModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-150 text-left">
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-gray-900">Gagal Mengunci Otomatis</h3>
+                <p className="text-[11px] text-gray-500">Data kelas atau rombel tidak terdeteksi.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 my-2">
+              <p className="text-xs text-gray-600 leading-relaxed font-semibold">
+                Mesin tidak dapat menyusun pembagian jam Kewalikelasan &amp; Wustho karena Anda belum menginput satupun Kelas.
+              </p>
+              <p className="text-xs text-indigo-700 bg-indigo-50/35 p-3 rounded-xl border border-indigo-100/60 leading-normal font-medium">
+                Silakan pergi ke tab <strong>&quot;Manajemen Kelas&quot;</strong> terlebih dahulu untuk menambahkan rombel Anda (misalnya VII A, VIII B, dst.), kemudian ulangi kembali proses ini.
+              </p>
+            </div>
+
+            <div className="flex justify-end mt-4 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowAutoLockErrorModal(false)}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Mengerti &amp; Tutup
+              </button>
             </div>
           </div>
         </div>

@@ -119,6 +119,7 @@ export interface Teacher {
 export interface Classroom {
   id: string; // auto-generated
   name: string; // e.g., 'VII A', 'IX F'
+  waliKelasId?: string; // Wali Kelas (Teacher ID)
 }
 
 export interface Workload {
